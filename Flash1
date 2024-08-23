@@ -1,0 +1,84 @@
+// Import required modules
+const axios = require('axios');
+const fetch = require('node-fetch');
+const { Network, Alchemy } = require('alchemy-sdk');
+
+// Configuration
+const apiKey = "KGvoEu81386xL7D1NGmXqegyGUi9_0it";
+const baseURL = `https://eth-mainnet.g.alchemy.com/v2/${apiKey}`;
+
+// Addresses and Contracts
+const vitalikAddress = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
+const usdcContract = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
+
+// 1. Axios Request (cURL Equivalent)
+async function axiosRequest() {
+  try {
+    const response = await axios.post(baseURL, {
+      id: 1,
+      jsonrpc: "2.0",
+      method: "eth_getBlockByNumber",
+      params: ["finalized", false],
+    }, {
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      }
+    });
+    console.log("Axios Response:", response.data);
+  } catch (error) {
+    console.error("Axios Error:", error);
+  }
+}
+
+// 2. Fetch API Request
+async function fetchRequest() {
+  try {
+    const response = await fetch(baseURL, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        id: 1,
+        jsonrpc: "2.0",
+        method: "eth_getBlockByNumber",
+        params: ["finalized", false],
+      }),
+    });
+    const data = await response.json();
+    console.log("Fetch Response:", data);
+  } catch (error) {
+    console.error("Fetch Error:", error);
+  }
+}
+
+// 3. Alchemy SDK Request
+async function alchemyRequest() {
+  const settings = {
+    apiKey: apiKey,
+    network: Network.ETH_MAINNET,
+  };
+  const alchemy = new Alchemy(settings);
+
+  try {
+    // Fetch and log the latest block number
+    const blockNumber = await alchemy.core.getBlockNumber();
+    console.log("Alchemy SDK Block Number:", blockNumber);
+
+    // Fetch and log token balances of USDC in Vitalik's address
+    const tokenBalances = await alchemy.core.getTokenBalances(vitalikAddress, [usdcContract]);
+    console.log("Alchemy SDK Token Balances:", tokenBalances);
+  } catch (error) {
+    console.error("Alchemy SDK Error:", error);
+  }
+}
+
+// Run all functions
+(async function run() {
+  console.log("Starting requests...");
+  await axiosRequest();
+  await fetchRequest();
+  await alchemyRequest();
+})();
