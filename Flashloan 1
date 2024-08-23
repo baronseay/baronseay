@@ -1,0 +1,113 @@
+// Import required libraries
+require('dotenv').config(); // For loading environment variables from .env file
+const Web3 = require('web3');
+const axios = require('axios');
+
+// Set up Web3 with an HTTP provider
+const infuraUrl = `https://mainnet.infura.io/v3/${process.env.INFURA_PROJECT_ID}`;
+const web3 = new Web3(infuraUrl);
+
+// MetaMask wallet address
+const walletAddress = process.env.WALLET_ADDRESS;
+
+// Check if connected to Ethereum Mainnet
+async function checkConnection() {
+    try {
+        const isConnected = await web3.eth.net.isListening();
+        if (!isConnected) {
+            throw new Error("Failed to connect to Ethereum Mainnet");
+        }
+        console.log("Connected to Ethereum Mainnet");
+    } catch (error) {
+        console.error(`Connection error: ${error.message}`);
+        throw error;
+    }
+}
+
+checkConnection();
+
+// Gas price optimization based on current network conditions
+async function optimizeGasPrice() {
+    try {
+        const gasPrice = await web3.eth.getGasPrice();
+        // Example: Reducen gas price slightly to minimize costs, but ensure transactions go through
+        const optimizedGasPrice = Math.floor(gasPrice * 0.95);
+        console.log(`Optimized gas price: ${optimizedGasPrice}`);
+        return optimizedGasPrice;
+    } catch (error) {
+        console.error(`Error optimizing gas price: ${error.message}`);
+        throw error;
+    }
+}
+
+// Example function to perform an arbitrage trade
+async function executeArbitrage(token1, token2, amountIn) {
+    try {
+        // UniswapV2Router contract address (example)
+        const routerAddress = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D';  // UniswapV2 Router
+        const routerABI = [ /* Provide the ABI for UniswapV2Router */ ];
+
+        // Initialize the contract
+        const uniswapRouter = new web3.eth.Contract(routerABI, routerAddress);
+
+        // Check token prices and calculate profitability
+        const amountsOut = await uniswapRouter.methods.getAmountsOut(amountIn, [token1, token2]).call();
+        const amountOutMin = Math.floor(amountsOut[1] * 0.95);  // 95% of expected output to cover slippage
+
+        // Execute the swap if profitable
+        if (amountsOut[1] > amountIn) {
+            const tx = {
+                from: walletAddress,
+                gas: 200000,
+                gasPrice: await optimizeGasPrice(),
+                nonce: await web3.eth.getTransactionCount(walletAddress),
+                to: routerAddress,
+                data: uniswapRouter.methods.swapExactTokensForTokens(
+                    amountIn,
+                    amountOutMin,
+                    [token1, token2],
+                    walletAddress,
+                    Math.floor(Date.now() / 1000) + 1200  // 20-minute deadline
+                ).encodeABI()
+            };
+
+            // Sign the transaction
+            const signedTx = await web3.eth.accounts.signTransaction(tx, process.env.PRIVATE_KEY);
+
+            // Send the transaction
+            const txHash = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
+            console.log(`Arbitrage executed, transaction hash: ${txHash.transactionHash}`);
+        } else {
+            console.log("Arbitrage not profitable at the moment.");
+        }
+    } catch (error) {
+        console.error(`Error executing arbitrage: ${error.message}`);
+        throw error;
+    }
+}
+
+// Example loop to continuously monitor and execute arbitrage opportunities
+async function monitorAndExecute() {
+    try {
+        while (true) {
+            // Define token addresses (e.g., WETH and DAI)
+            const token1 = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';  // WETH
+            const token2 = '0x6B175474E89094C44Da98b954EedeAC495271d0F';  // DAI
+
+            // Define the amount to trade (e.g., 1 WETH)
+            const amountIn = web3.utils.toWei('1', 'ether');
+
+            // Execute arbitrage
+            await executeArbitrage(token1, token2, amountIn);
+
+            // Wait for the next opportunity
+            await new Promise(resolve => setTimeout(resolve, 60000));  // Run every minute
+        }
+    } catch (error) {
+        console.error(`Error in monitoring loop: ${error.message}`);
+        throw error;
+    }
+}
+
+// Start the monitoring and execution process
+monitorAndExecute();
